@@ -27,12 +27,12 @@ parser = argparse.ArgumentParser(description='Data Preparation for Traffic Sign 
 #parser.add_argument('--model-path',
 					#default='./checkpoints/model_gtsrb_rn_adv6.pt',
 					#help='model for white-box attack evaluation')
-parser.add_argument('--model-num', type=int, default=0, help='which model checkpoint to use')
+parser.add_argument('--model-num', type=int, default=2, help='which model checkpoint to use')
 parser.add_argument('--test-batch-size', type=int, default=50, metavar='N',
 					help='input batch size for testing (default: 200)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
 					help='disables CUDA training')
-parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_standard.pth', help='Path to the saved adversarial images')
+parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_beta4.pth', help='Path to the saved adversarial images')
 parser.add_argument('--image_file_path', type=str, default='./checkpoints/images_vgg_1103_96.pth', help='Path to the sampled images and labels')
 
 args = parser.parse_args()
