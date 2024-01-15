@@ -13,12 +13,14 @@ from torchvision.models import resnet101, ResNet101_Weights
 import torchvision.models as models
 #from contrastive import CPCA
 import numpy as np
+import pandas as pd
+from PIL import Image
 #from ccpca import CCPCA
 
-from GTSRB import GTSRB_Test
-from feature_extractor import FeatureExtractor
+#from GTSRB import GTSRB_Test
+#from feature_extractor import FeatureExtractor
 
-from HAM_preprocess import HAM10000
+#from HAM_preprocess import HAM10000
 from torch.utils.data import Dataset
 
 parser = argparse.ArgumentParser(description='Data Preparation for Traffic Sign Project')
@@ -26,7 +28,7 @@ parser = argparse.ArgumentParser(description='Data Preparation for Traffic Sign 
 					#default='./checkpoints/model_gtsrb_rn_adv6.pt',
 					#help='model for white-box attack evaluation')
 parser.add_argument('--model-num', type=int, default=0, help='which model checkpoint to use')
-parser.add_argument('--test-batch-size', type=int, default=64, metavar='N',
+parser.add_argument('--test-batch-size', type=int, default=50, metavar='N',
 					help='input batch size for testing (default: 200)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
 					help='disables CUDA training')
@@ -40,23 +42,23 @@ use_cuda = not args.no_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-class Dataset__(Dataset):
-	def __init__(self, images, labels, transform=None):
-		self.images = images
-		self.labels = labels
-		self.transform = transform
+#class Dataset__(Dataset):
+	#def __init__(self, images, labels, transform=None):
+		#self.images = images
+		#self.labels = labels
+		#self.transform = transform
 
-	def __len__(self):
-		return len(self.images)
+	#def __len__(self):
+		#return len(self.images)
 
-	def __getitem__(self, idx):
-		image = self.images[idx]
-		label = self.labels[idx]
+	#def __getitem__(self, idx):
+		#image = self.images[idx]
+		#label = self.labels[idx]
 
-		if self.transform:
-			image = self.transform(image)
+		#if self.transform:
+			#image = self.transform(image)
 
-		return image, label
+		#return image, label
 
 # set up data loader
 #transform_test = transforms.Compose([
@@ -71,9 +73,9 @@ class Dataset__(Dataset):
 
 #test_loader_nat = torch.utils.data.DataLoader(testset_nat, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
-data_dir = '/content/data/HAM10000/'
-df_train = pd.read_csv(data_dir + 'train_data.csv')
-df_val = pd.read_csv(data_dir + 'val_data.csv')
+#data_dir = '/content/data/HAM10000/'
+#df_train = pd.read_csv(data_dir + 'train_data.csv')
+#df_val = pd.read_csv(data_dir + 'val_data.csv')
 
 
 input_size = 96
@@ -85,11 +87,13 @@ norm_std = [0.1409286, 0.15261266, 0.16997074]
 val_transform = transforms.Compose([transforms.Resize((input_size,input_size)), transforms.ToTensor(),
 									transforms.Normalize(norm_mean, norm_std)])
 
+normalize_ = transforms.Normalize(norm_mean, norm_std)
+
 # Same for the validation set:
 #test_set_nat = HAM10000(df_val, transform=val_transform)
 #test_loader_nat = torch.utils.data.DataLoader(test_set_nat, batch_size=args.test_batch_size, shuffle=False, num_workers=4)
 
-def rep(model, device, test_loader_nat, test_loader_adv):
+def rep(backbone, model, device, test_loader_nat, test_loader_adv):
 	model.eval()
 
 	#feature list
@@ -105,13 +109,18 @@ def rep(model, device, test_loader_nat, test_loader_adv):
 	nat_total = 0
 
 	for data,target in test_loader_nat:
+
 		data, target = data.to(device), target.to(device)
 		X, y = Variable(data), Variable(target)
 
-		feat = model[0](X).reshape(X.shape[0], 2048)
+		#feat = model[0](normalize_(X)).reshape(X.shape[0], 4096)
+
+		feat = backbone(normalize_(X))
+		feat = feat.view(feat.size(0), -1)  # Using view for flattening
+		#print(feat.shape)
 
 		#pass thru linear layer to obtain prediction result
-		pred = model[1](feat)
+		pred = model(normalize_(X))
 
 		nat_accu += (pred.data.max(1)[1] == y.data).float().sum()
 		nat_total += X.shape[0]
@@ -132,10 +141,14 @@ def rep(model, device, test_loader_nat, test_loader_adv):
 		data, target = data.to(device), target.to(device)
 		X, y = Variable(data), Variable(target)
 
-		feat = model[0](X).reshape(X.shape[0], 2048)
+		#feat = model[0](normalize_(X)).reshape(X.shape[0], 4096)
+
+		feat = backbone(normalize_(X))
+		feat = feat.view(feat.size(0), -1)  # Using view for flattening
+		#print(feat.shape)
 
 		#pass thru linear layer to obtain prediction result
-		pred = model[1](feat)
+		pred = model(normalize_(X))
 
 		adv_accu += (pred.data.max(1)[1] == y.data).float().sum()
 		adv_total += X.shape[0]
@@ -155,13 +168,15 @@ def rep(model, device, test_loader_nat, test_loader_adv):
 	features = np.array(features)
 	type_ = np.array(type_)
 
+	print('predictions.shape', predictions.shape)
+
 	return features, predictions, targets, type_
 
 def dimen_reduc(features):
 	
 	feature_t = TSNE_(features)
 
-	tx, ty = feature_t[:, 0].reshape(12630*2, 1), feature_t[:, 1].reshape(12630*2, 1)
+	tx, ty = feature_t[:, 0].reshape(1100*2, 1), feature_t[:, 1].reshape(1100*2, 1)
 	tx = (tx-np.min(tx)) / (np.max(tx) - np.min(tx))
 	ty = (ty-np.min(ty)) / (np.max(ty) - np.min(ty))
 
@@ -171,6 +186,8 @@ def TSNE_(data):
 
 	tsne = TSNE(n_components=2)
 	data = tsne.fit_transform(data)
+
+	print(data.shape)
 
 	return data
 
@@ -206,12 +223,20 @@ def main():
 	saved_data = torch.load(args.saved_file_path, map_location=device)
 	saved_image = torch.load(args.image_file_path, map_location=device)
 
-	adv_images = saved_data['adv']  # Adversarial images
+	adv_images = saved_data['adv']#.detach().cpu().numpy()  # Adversarial images
 	nat_images = saved_image['images']
-	nat_images = nat_images[:-3]
+	nat_images = nat_images[:-3]#.detach().cpu().numpy()
 
 	true_labels = saved_image['labels']  # True labels
-	true_labels_adv = true_labels[:-3]
+	true_labels = true_labels[:-3]#.detach().cpu().numpy()
+
+	print("Shape of adv_images:", adv_images.shape)
+	print("Shape of nat_images:", nat_images.shape)
+	print("Shape of true_labels:", true_labels.shape)
+
+	#print("Device for adv_images:", adv_images.device)
+	#print("Device for nat_images:", nat_images.device)
+	#print("Device for true_labels:", true_labels.device)
 
 	#initialize model
 	#model = resnet101()
@@ -220,10 +245,10 @@ def main():
 	model = models.vgg16()
 	model.classifier[6] = nn.Linear(4096, 7)
 
-	testset_adv = Dataset__(adv_images, true_labels, transform=val_transform)
+	testset_adv = torch.utils.data.TensorDataset(adv_images.detach().cpu(), true_labels.detach().cpu())
 	test_loader_adv = torch.utils.data.DataLoader(testset_adv, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
-	testset_nat = Dataset__(nat_images, true_labels, transform=val_transform)
+	testset_nat = torch.utils.data.TensorDataset(nat_images.detach().cpu(), true_labels.detach().cpu())
 	test_loader_nat = torch.utils.data.DataLoader(testset_nat, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
 	if args.model_num == 0:
@@ -245,13 +270,7 @@ def main():
 	backbone = model.features
 	backbone = backbone.to(device)
 
-	#fc = model.fc
-
-	fc = model.classifier[6]
-
-	model_ = nn.Sequential(backbone, fc)
-
-	features, predictions, targets, type_ = rep(model_, device, test_loader_nat, test_loader_adv)
+	features, predictions, targets, type_ = rep(backbone, model, device, test_loader_nat, test_loader_adv)
 
 	indices = np.where(targets == 0)[0]
 	print(indices)
@@ -259,6 +278,8 @@ def main():
 
 	# Get the subset of data instances with the target label
 	filtered_data = features[indices]
+
+	print(features.shape)
 
 	tx, ty = dimen_reduc(features)
 	#tx, ty = dimen_reduc_cpca(filtered_data)
@@ -273,9 +294,12 @@ def main():
 	type_ = type_.reshape(type_.shape[0], 1)
 
 	#only for one class
-	predictions = predictions[indices]
-	targets = targets[indices]
-	type_ = type_[indices]
+	#predictions = predictions[indices]
+	#targets = targets[indices]
+	#type_ = type_[indices]
+
+	print('tx.shape', tx.shape)
+	print('ty.shape', ty.shape)
 
 	result = np.concatenate((tx, ty, predictions, targets, type_), axis=1)
 	type_ = ['%.5f'] * 2 + ['%d'] * 3
