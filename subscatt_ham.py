@@ -12,20 +12,22 @@ from torch.autograd import Variable
 from torchvision.models import resnet101, ResNet101_Weights
 import numpy as np
 from torch.utils.data import Subset, DataLoader
+import torchvision.models as models
+from torch.utils.data import Dataset
 
 #from GTSRB import GTSRB_Test
 #from GTSRB_sub import GTSRB_Test_Sub
 #from feature_extractor import FeatureExtractor
 
 parser = argparse.ArgumentParser(description='Data Preparation for HAM10000')
-parser.add_argument('--model-num', type=int, default=1, help='which model checkpoint to use')
+parser.add_argument('--model-num', type=int, default=2, help='which model checkpoint to use')
 parser.add_argument('--test-batch-size', type=int, default=64, metavar='N',
 					help='input batch size for testing (default: 200)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
 					help='disables CUDA training')
 parser.add_argument('--mode', default=0,
 					help='define whcih subcanvas')
-parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_standard.pth', help='Path to the saved adversarial images')
+parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_beta4.pth', help='Path to the saved adversarial images')
 parser.add_argument('--image_file_path', type=str, default='./checkpoints/images_vgg_1103_96.pth', help='Path to the sampled images and labels')
 
 args = parser.parse_args()
@@ -48,6 +50,8 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
 n_class = 7
 
+input_size = 96
+
 norm_mean = [0.7630392, 0.5456477, 0.57004845]
 norm_std = [0.1409286, 0.15261266, 0.16997074]
 
@@ -59,9 +63,34 @@ normalize_ = transforms.Normalize(norm_mean, norm_std)
 
 #test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
+class IndexedDataset(Dataset):
+	def __init__(self, images, labels):
+		self.images = images
+		self.labels = labels
+
+	def __len__(self):
+		return len(self.images)
+
+	def __getitem__(self, idx):
+		image = self.images[idx]
+		label = self.labels[idx]
+		return image, label, idx
+
 def TSNE_(data):
 
-	tsne = TSNE(n_components=2)
+	n_samples = data.shape[0]
+
+	# Set perplexity based on the number of samples
+	if n_samples > 100:
+		perplexity = 30  # Default value for large datasets
+	elif n_samples > 30:
+		perplexity = 15  # Medium-sized datasets
+	elif n_samples > 10:
+		perplexity = 5   # Smaller datasets
+	else:
+		perplexity = max(1, n_samples / 3)  # Very small datasets
+
+	tsne = TSNE(n_components=2, perplexity=perplexity)
 	data = tsne.fit_transform(data)
 
 	return data
@@ -153,17 +182,17 @@ def dimen_reduc(features, num_data):
 
 	return tx, ty
 
-def create_filtered_loader(images, labels, label_to_filter, batch_size, shuffle=False):
+def create_filtered_loader(images, labels, label, batch_size):
+	# Create an instance of the custom dataset
+	indexed_dataset = IndexedDataset(images, labels)
 
-	# Filter the indices with the specified label
-	indices = [i for i, label in enumerate(labels) if label == label_to_filter]
+	# Filter the dataset for the specified label
+	filtered_indices = [i for i, label_ in enumerate(labels) if label_ == label]
+	filtered_dataset = torch.utils.data.Subset(indexed_dataset, filtered_indices)
 
-	# Create a subset of the dataset using the filtered indices
-	filtered_dataset = torch.utils.data.Subset(torch.utils.data.TensorDataset(images, labels), indices)
-
-	# Create and return the DataLoader
-	return torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=shuffle)
-
+	# Create a DataLoader from the filtered dataset
+	loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=False)
+	return loader
 
 def main():
 
@@ -227,12 +256,14 @@ def main():
 
 		#test_loader2 = torch.utils.data.DataLoader(testset2, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
-		test_loader0 = create_filtered_loader(adv_images.detach().cpu(), true_labels.detach().cpu(), i, args.test_batch_size)
-		test_loader2 = create_filtered_loader(nat_images.detach().cpu(), true_labels.detach().cpu(), i, args.test_batch_size)
+		test_loader2 = create_filtered_loader(adv_images.detach().cpu(), true_labels.detach().cpu(), i, args.test_batch_size)
+		test_loader0 = create_filtered_loader(nat_images.detach().cpu(), true_labels.detach().cpu(), i, args.test_batch_size)
 
-		features, predictions, targets, adv_class, match_idx, og_dices = rep2(model_1, device, test_loader0, test_loader2)
+		features, predictions, targets, adv_class, match_idx, og_dices = rep2(model1, device, test_loader0, test_loader2)
 
 		tx, ty = dimen_reduc(features, len(test_loader0.dataset))
+
+		print(i)
 
 		#convert to tabular data
 		path = "./subscatt_data" + str(args.model_num) + "/" + str(i) + "/"
@@ -245,7 +276,7 @@ def main():
 		match_idx = match_idx.reshape(match_idx.shape[0], 1)
 		og_dices = og_dices.reshape(og_dices.shape[0], 1)
 
-		print(og_dices)
+		#print(og_dices)
 
 		result = np.concatenate((tx, ty, predictions, targets, adv_class, match_idx, og_dices), axis=1)
 		type_ = ['%.5f'] * 2 + ['%d'] * 5
