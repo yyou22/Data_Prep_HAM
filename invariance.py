@@ -15,15 +15,15 @@ import numpy as np
 from torch.utils.data import Subset, DataLoader
 import csv
 
-from GTSRB import GTSRB_Test
-from GTSRB_sub import GTSRB_Test_Sub
-from feature_extractor import FeatureExtractor
+#from GTSRB import GTSRB_Test
+#from GTSRB_sub import GTSRB_Test_Sub
+#from feature_extractor import FeatureExtractor
 
 parser = argparse.ArgumentParser(description='Data Preparation for Traffic Sign Project')
 #parser.add_argument('--model-path',
                     #default='./checkpoints/model_gtsrb_rn_adv6.pt',
                     #help='model for white-box attack evaluation')
-parser.add_argument('--model-num', type=int, default=0, help='which model checkpoint to use')
+parser.add_argument('--model-num', type=int, default=2, help='which model checkpoint to use')
 parser.add_argument('--test-batch-size', type=int, default=50, metavar='N',
                     help='input batch size for testing (default: 64)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -73,9 +73,9 @@ def inv(backbone, device, testloader0, testloader1):
 	inv_total = 0
 	num_instance = len(testloader0)
 
-	iter1 = iter(test_loader1)
+	iter1 = iter(testloader1)
 
-	for data, target in test_loader0:
+	for data, target in testloader0:
 
 		data1, target1 = data.to(device), target.to(device)
 		X1 = Variable(data1)
@@ -84,8 +84,8 @@ def inv(backbone, device, testloader0, testloader1):
 		data2, target2 = data.to(device), target.to(device)
 		X2 = Variable(data2)
 
-		x1 = backbone(X1)
-		x2 = backbone(X2)
+		x1 = backbone(normalize_(X1))
+		x2 = backbone(normalize_(X2))
 
 		repr_loss = F.mse_loss(x1, x2)
 

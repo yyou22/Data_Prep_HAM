@@ -8,4 +8,4 @@ run `summary.py`. This file is modified from `summary.py` from the GTSRB repo. T
 
 ## Calculate the invariance between natural and adversarial embeddings
 
-run `invariance.py`. Produce file is named inv.csv.
+run `invariance.py`. Produce file is named inv.csv. Note: the script only write one row (per model) to inv.csv at a time.
