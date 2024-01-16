@@ -8,4 +8,8 @@ run `summary.py`. This file is modified from `summary.py` from the GTSRB repo. T
 
 ## Calculate the invariance between natural and adversarial embeddings
 
-run `invariance.py`. Produce file is named inv.csv. Note: the script only write one row (per model) to inv.csv at a time.
+run `invariance.py`. Produce file is named inv.csv. Note: the script only write one row (per model) to inv.csv at a time. Might need to manually add the header of "inv" after outputting all three rows.
+
+## Combine inv.csv and summary.csv
+
+To prepare summary.csv for AdvVis (VATRA), `convert.py` needs to be ran with `combine_csv()` to combine summary.csv and inv.csv into one single csv named output.csv. After that, rename it to summary.csv and place it within the data folder of VATRA.
