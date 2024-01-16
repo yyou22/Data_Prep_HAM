@@ -13,3 +13,11 @@ run `invariance.py`. Produce file is named inv.csv. Note: the script only write 
 ## Combine inv.csv and summary.csv
 
 To prepare summary.csv for AdvVis (VATRA), `convert.py` needs to be ran with `combine_csv()` to combine summary.csv and inv.csv into one single csv named output.csv. After that, rename it to summary.csv and place it within the data folder of VATRA.
+
+## Convert images from tensors to actual jpegs
+
+Do so still with `convert.py`, but adjust the checkpoints in arguments accordingly and switch to functin `convert_img()`.
+
+## Finding representative images as icons for the system
+
+Do so still with `convert.py` but use the `find_icon()` function. It returns the indices of the first images that have each of the unique labels.
