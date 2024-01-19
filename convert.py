@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 
 parser = argparse.ArgumentParser(description='Converting images from tensor for HAM10000 dataset')
-parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_standard.pth', help='Path to the saved adversarial images')
+parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_beta4.pth', help='Path to the saved adversarial images')
 parser.add_argument('--image_file_path', type=str, default='./checkpoints/images_vgg_1103_96.pth', help='Path to the sampled images and labels')
 
 args = parser.parse_args()
@@ -36,7 +36,7 @@ def find_icons():
 
 def convert_img():
 
-	path = "./Images/"
+	path = "./Images2/"
 	if not os.path.exists(path):
 		os.makedirs(path)
 
@@ -52,7 +52,8 @@ def convert_img():
 	true_labels = saved_image['labels']  # True labels
 	true_labels = true_labels[:-3].numpy()
 
-	images = nat_images
+	#need to modify this line
+	images = adv_images
 
 	num = np.shape(images)[0]
 
@@ -87,9 +88,9 @@ def combine_csv():
 	merged.to_csv("output.csv", index=False)
 
 def main():
-	#convert_img()
+	convert_img()
 	#combine_csv()
-	find_icons()
+	#find_icons()
 
 if __name__ == '__main__':
 	main()

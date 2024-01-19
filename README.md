@@ -21,3 +21,11 @@ Do so still with `convert.py`, but adjust the checkpoints in arguments according
 ## Finding representative images as icons for the system
 
 Do so still with `convert.py` but use the `find_icon()` function. It returns the indices of the first images that have each of the unique labels.
+
+## Generate the files for the larger class-wise scatterplot
+
+Run `subscatt_ham.py`.
+
+## Generate the perturbation of the images
+
+Run `noise_generation.py`.
