@@ -29,3 +29,7 @@ Run `subscatt_ham.py`.
 ## Generate the perturbation of the images
 
 Run `noise_generation.py`.
+
+## Check which images are the exact same between the nat_images and the adv_images
+
+Run `diff_check.py`.
