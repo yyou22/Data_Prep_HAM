@@ -15,24 +15,17 @@ import torchvision.models as models
 import numpy as np
 import pandas as pd
 from PIL import Image
-#from ccpca import CCPCA
 
-#from GTSRB import GTSRB_Test
-#from feature_extractor import FeatureExtractor
-
-#from HAM_preprocess import HAM10000
 from torch.utils.data import Dataset
 
 parser = argparse.ArgumentParser(description='Data Preparation for Traffic Sign Project')
-#parser.add_argument('--model-path',
-					#default='./checkpoints/model_gtsrb_rn_adv6.pt',
-					#help='model for white-box attack evaluation')
-parser.add_argument('--model-num', type=int, default=2, help='which model checkpoint to use')
+
+parser.add_argument('--model-num', type=int, default=1, help='which model checkpoint to use')
 parser.add_argument('--test-batch-size', type=int, default=50, metavar='N',
 					help='input batch size for testing (default: 200)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
 					help='disables CUDA training')
-parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_beta4.pth', help='Path to the saved adversarial images')
+parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_beta.5.pth', help='Path to the saved adversarial images')
 parser.add_argument('--image_file_path', type=str, default='./checkpoints/images_vgg_1103_96.pth', help='Path to the sampled images and labels')
 
 args = parser.parse_args()
@@ -42,43 +35,9 @@ use_cuda = not args.no_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-#class Dataset__(Dataset):
-	#def __init__(self, images, labels, transform=None):
-		#self.images = images
-		#self.labels = labels
-		#self.transform = transform
-
-	#def __len__(self):
-		#return len(self.images)
-
-	#def __getitem__(self, idx):
-		#image = self.images[idx]
-		#label = self.labels[idx]
-
-		#if self.transform:
-			#image = self.transform(image)
-
-		#return image, label
-
-# set up data loader
-#transform_test = transforms.Compose([
-	#transforms.Resize((96, 96)),
-	#transforms.ToTensor(),
-#])
-
-#testset_nat = GTSRB_Test(
-	#root_dir='/content/data/GTSRB/Final_Test/Images/',
-	#transform=transform_test
-#)
-
-#test_loader_nat = torch.utils.data.DataLoader(testset_nat, batch_size=args.test_batch_size, shuffle=False, **kwargs)
-
-#data_dir = '/content/data/HAM10000/'
-#df_train = pd.read_csv(data_dir + 'train_data.csv')
-#df_val = pd.read_csv(data_dir + 'val_data.csv')
-
-
 input_size = 96
+
+num_instance = 0
 
 norm_mean = [0.7630392, 0.5456477, 0.57004845]
 norm_std = [0.1409286, 0.15261266, 0.16997074]
@@ -89,9 +48,6 @@ val_transform = transforms.Compose([transforms.Resize((input_size,input_size)), 
 
 normalize_ = transforms.Normalize(norm_mean, norm_std)
 
-# Same for the validation set:
-#test_set_nat = HAM10000(df_val, transform=val_transform)
-#test_loader_nat = torch.utils.data.DataLoader(test_set_nat, batch_size=args.test_batch_size, shuffle=False, num_workers=4)
 
 def rep(backbone, model, device, test_loader_nat, test_loader_adv):
 	model.eval()
@@ -104,6 +60,7 @@ def rep(backbone, model, device, test_loader_nat, test_loader_adv):
 	targets = []
 	#show nat or adv
 	type_ = []
+	match_idx = []
 
 	nat_accu = 0
 	nat_total = 0
@@ -131,6 +88,13 @@ def rep(backbone, model, device, test_loader_nat, test_loader_adv):
 		features.extend(feat.cpu().detach().numpy())
 
 	type_.extend([0] * nat_total)
+
+	for i in range(nat_total):
+		match_idx.append(i)
+	match_idx = match_idx[:nat_total]
+	match_idx.extend(match_idx)
+
+	print(match_idx)
 
 	print("Natural Prediction Accuracy:" + str(nat_accu/nat_total))
 
@@ -167,16 +131,17 @@ def rep(backbone, model, device, test_loader_nat, test_loader_adv):
 	predictions = np.array(predictions)
 	features = np.array(features)
 	type_ = np.array(type_)
+	match_idx = np.array(match_idx)
 
 	print('predictions.shape', predictions.shape)
 
-	return features, predictions, targets, type_
+	return features, predictions, targets, type_, match_idx
 
 def dimen_reduc(features):
 	
 	feature_t = TSNE_(features)
 
-	tx, ty = feature_t[:, 0].reshape(1100*2, 1), feature_t[:, 1].reshape(1100*2, 1)
+	tx, ty = feature_t[:, 0].reshape(num_instance *2, 1), feature_t[:, 1].reshape(num_instance *2, 1)
 	tx = (tx-np.min(tx)) / (np.max(tx) - np.min(tx))
 	ty = (ty-np.min(ty)) / (np.max(ty) - np.min(ty))
 
@@ -191,34 +156,7 @@ def TSNE_(data):
 
 	return data
 
-#def dimen_reduc_cpca(features):
-
-	#half_length = features.shape[0] // 2
-	#data_back = features[:half_length]
-	#data_fore = features[half_length:]
-	
-	#ccpca = CCPCA(n_components=2)
-	#ccpca.fit(data_fore, data_back, var_thres_ratio=0.5, n_alphas=40, max_log_alpha=0.5)
-	#ccpca_result = ccpca.transform(features)
-
-	#feature_t = ccpca_result
-
-	#print(half_length)
-
-	#tx, ty = feature_t[:, 0].reshape(half_length*2, 1), feature_t[:, 1].reshape(half_length*2, 1)
-	#tx = (tx-np.min(tx)) / (np.max(tx) - np.min(tx))
-	#ty = (ty-np.min(ty)) / (np.max(ty) - np.min(ty))
-
-	#return tx, ty
-
 def main():
-
-	#testset_adv = GTSRB_Test(
-		#root_dir='/content/data/Images_' + str(args.model_num) + '_ppm',
-		#transform=transform_test
-	#)
-
-	#test_loader_adv = torch.utils.data.DataLoader(testset_adv, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
 	saved_data = torch.load(args.saved_file_path, map_location=device)
 	saved_image = torch.load(args.image_file_path, map_location=device)
@@ -230,17 +168,26 @@ def main():
 	true_labels = saved_image['labels']  # True labels
 	true_labels = true_labels[:-3]#.detach().cpu().numpy()
 
+	label_4_indexes = (true_labels == 4).nonzero(as_tuple=True)[0]
+
+	# Select the first 400 instances where label is 4
+	excluded_indexes = label_4_indexes[:400]
+	# Create a mask for all indices
+	mask = torch.ones(len(true_labels), dtype=torch.bool)
+	# Set the mask to false for excluded indexes
+	mask[excluded_indexes] = False
+
+	# Extract the corresponding images
+	nat_images = nat_images[mask]
+	adv_images = adv_images[mask]
+	true_labels = true_labels[mask]
+
 	print("Shape of adv_images:", adv_images.shape)
 	print("Shape of nat_images:", nat_images.shape)
 	print("Shape of true_labels:", true_labels.shape)
 
-	#print("Device for adv_images:", adv_images.device)
-	#print("Device for nat_images:", nat_images.device)
-	#print("Device for true_labels:", true_labels.device)
-
-	#initialize model
-	#model = resnet101()
-	#model.fc = nn.Linear(2048, 43)
+	global num_instance
+	num_instance = true_labels.shape[0]
 
 	model = models.vgg16()
 	model.classifier[6] = nn.Linear(4096, 7)
@@ -255,7 +202,7 @@ def main():
 		model_path = './checkpoints/standard.pt'
 	elif args.model_num == 1:
 		model_path = './checkpoints/beta.5.pt'
-	else:
+	elif args.model_num == 2:
 		model_path = './checkpoints/beta4.pt'
 
 	model.load_state_dict(torch.load(model_path))
@@ -270,7 +217,7 @@ def main():
 	backbone = model.features
 	backbone = backbone.to(device)
 
-	features, predictions, targets, type_ = rep(backbone, model, device, test_loader_nat, test_loader_adv)
+	features, predictions, targets, type_, match_idx = rep(backbone, model, device, test_loader_nat, test_loader_adv)
 
 	indices = np.where(targets == 0)[0]
 	print(indices)
@@ -292,6 +239,7 @@ def main():
 	predictions = predictions.reshape(predictions.shape[0], 1)
 	targets = targets.reshape(targets.shape[0], 1)
 	type_ = type_.reshape(type_.shape[0], 1)
+	match_idx = match_idx.reshape(match_idx.shape[0], 1)
 
 	#only for one class
 	#predictions = predictions[indices]
@@ -301,9 +249,9 @@ def main():
 	print('tx.shape', tx.shape)
 	print('ty.shape', ty.shape)
 
-	result = np.concatenate((tx, ty, predictions, targets, type_), axis=1)
-	type_ = ['%.5f'] * 2 + ['%d'] * 3
-	np.savetxt(path + "data_" + str(args.model_num) + "_all.csv", result, header="xpos,ypos,pred,target,type", comments='', delimiter=',', fmt=type_)
+	result = np.concatenate((tx, ty, predictions, targets, type_, match_idx), axis=1)
+	type_ = ['%.5f'] * 2 + ['%d'] * 4
+	np.savetxt(path + "data_" + str(args.model_num) + "_all.csv", result, header="xpos,ypos,pred,target,type,match_idx", comments='', delimiter=',', fmt=type_)
 
 if __name__ == '__main__':
 	main()

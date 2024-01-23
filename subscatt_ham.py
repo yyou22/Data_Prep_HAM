@@ -15,19 +15,15 @@ from torch.utils.data import Subset, DataLoader
 import torchvision.models as models
 from torch.utils.data import Dataset
 
-#from GTSRB import GTSRB_Test
-#from GTSRB_sub import GTSRB_Test_Sub
-#from feature_extractor import FeatureExtractor
-
 parser = argparse.ArgumentParser(description='Data Preparation for HAM10000')
-parser.add_argument('--model-num', type=int, default=2, help='which model checkpoint to use')
-parser.add_argument('--test-batch-size', type=int, default=64, metavar='N',
+parser.add_argument('--model-num', type=int, default=0, help='which model checkpoint to use')
+parser.add_argument('--test-batch-size', type=int, default=50, metavar='N',
 					help='input batch size for testing (default: 200)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
 					help='disables CUDA training')
-parser.add_argument('--mode', default=0,
-					help='define whcih subcanvas')
-parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_beta4.pth', help='Path to the saved adversarial images')
+#parser.add_argument('--mode', default=0,
+					#help='define whcih subcanvas')
+parser.add_argument('--saved_file_path', type=str, default='./checkpoints/pixel_vgg_1103_5000_96_0.2000_rand_standard.pth', help='Path to the saved adversarial images')
 parser.add_argument('--image_file_path', type=str, default='./checkpoints/images_vgg_1103_96.pth', help='Path to the sampled images and labels')
 
 args = parser.parse_args()
@@ -36,17 +32,6 @@ args = parser.parse_args()
 use_cuda = not args.no_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
-
-# set up data loader
-#transform_test = transforms.Compose([
-	#transforms.Resize((96, 96)),
-	#transforms.ToTensor(),
-#])
-
-#testset = GTSRB_Test(
-	#root_dir='/content/data/GTSRB-Test/Final_Test/Images/',
-	#transform=transform_test
-#)
 
 n_class = 7
 
@@ -132,6 +117,7 @@ def rep2(model, device, test_loader0, test_loader1):
 
 		#pass thru linear layer to obtain prediction result
 		#pred1 = model[1](feat1)
+		model.eval()
 		pred1 = model(normalize_(X))
 
 		targets.extend(y.data.cpu().detach().numpy())
@@ -152,6 +138,7 @@ def rep2(model, device, test_loader0, test_loader1):
 
 		#pass thru linear layer to obtain prediction result
 		#pred2 = model[1](feat2)
+		model.eval()
 		pred2 = model(normalize_(X))
 
 		targets.extend(y.data.cpu().detach().numpy())
@@ -206,60 +193,55 @@ def main():
 	true_labels = saved_image['labels']
 	true_labels = true_labels[:-3]
 
+	label_4_indexes = (true_labels == 4).nonzero(as_tuple=True)[0]
+
+	# Select the first 400 instances where label is 4
+	excluded_indexes = label_4_indexes[:400]
+	# Create a mask for all indices
+	mask = torch.ones(len(true_labels), dtype=torch.bool)
+	# Set the mask to false for excluded indexes
+	mask[excluded_indexes] = False
+
+	# Extract the corresponding images
+	nat_images = nat_images[mask]
+	adv_images = adv_images[mask]
+	true_labels = true_labels[mask]
+
 	print("Shape of adv_images:", adv_images.shape)
 	print("Shape of nat_images:", nat_images.shape)
 	print("Shape of true_labels:", true_labels.shape)
-
-	#testset_adv = torch.utils.data.TensorDataset(adv_images.detach().cpu(), true_labels.detach().cpu())
-	#test_loader_adv = torch.utils.data.DataLoader(testset_adv, batch_size=args.test_batch_size, shuffle=False, **kwargs)
-
-	#testset_nat = torch.utils.data.TensorDataset(nat_images.detach().cpu(), true_labels.detach().cpu())
-	#test_loader_nat = torch.utils.data.DataLoader(testset_nat, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
 	if args.model_num == 0:
 		model_path = './checkpoints/standard.pt'
 	elif args.model_num == 1:
 		model_path = './checkpoints/beta.5.pt'
-	else:
+	elif args.model_num == 2:
 		model_path = './checkpoints/beta4.pt'
 
 	#model1 = resnet101()
 	#model1.fc = nn.Linear(2048, 43)
 
-	model1 = models.vgg16()
-	model1.classifier[6] = nn.Linear(4096, 7)
+	model = models.vgg16()
+	model.classifier[6] = nn.Linear(4096, 7)
 
-	model1.load_state_dict(torch.load(model_path))
-	model1 = model1.to(device)
+	model.load_state_dict(torch.load(model_path))
+	model = model.to(device)
+	model.eval()
 
 	#backbone1 = FeatureExtractor(model1)
 	#backbone1 = backbone1.to(device)
 	#fc1 = model1.fc
 	#model_1 = nn.Sequential(backbone1, fc1)
 
-	backbone1 = model1.features
-	backbone1 = backbone1.to(device)
+	#backbone1 = model1.features
+	#backbone1 = backbone1.to(device)
 
 	for i in range(0, n_class):
-
-		#testset0 = GTSRB_Test_Sub(
-					#root_dir='/content/data/GTSRB/Final_Test/Images/',
-					#class_ = i,
-					#transform=transform_test)
-
-		#test_loader0 = torch.utils.data.DataLoader(testset0, batch_size=args.test_batch_size, shuffle=False, **kwargs)
-
-		#testset2 = GTSRB_Test_Sub(
-					#root_dir='/content/data/Images_' + str(args.model_num) + '_ppm/',
-					#class_ = i,
-					#transform=transform_test)
-
-		#test_loader2 = torch.utils.data.DataLoader(testset2, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
 		test_loader2 = create_filtered_loader(adv_images.detach().cpu(), true_labels.detach().cpu(), i, args.test_batch_size)
 		test_loader0 = create_filtered_loader(nat_images.detach().cpu(), true_labels.detach().cpu(), i, args.test_batch_size)
 
-		features, predictions, targets, adv_class, match_idx, og_dices = rep2(model1, device, test_loader0, test_loader2)
+		features, predictions, targets, adv_class, match_idx, og_dices = rep2(model, device, test_loader0, test_loader2)
 
 		tx, ty = dimen_reduc(features, len(test_loader0.dataset))
 
@@ -281,10 +263,11 @@ def main():
 		result = np.concatenate((tx, ty, predictions, targets, adv_class, match_idx, og_dices), axis=1)
 		type_ = ['%.5f'] * 2 + ['%d'] * 5
 		
-		if args.mode == 0:
-			np.savetxt(path + "data_label.csv", result, header="xpos,ypos,pred,target,cur_model,match_idx,og_idx", comments='', delimiter=',', fmt=type_)
-		elif args.mode == 1:
-			np.savetxt(path + "data_pred.csv", result, header="xpos,ypos,pred,target,cur_model,match_idx,og_idx", comments='', delimiter=',', fmt=type_)
+		np.savetxt(path + "data_label.csv", result, header="xpos,ypos,pred,target,cur_model,match_idx,og_idx", comments='', delimiter=',', fmt=type_)
+		#if args.mode == 0:
+			#np.savetxt(path + "data_label.csv", result, header="xpos,ypos,pred,target,cur_model,match_idx,og_idx", comments='', delimiter=',', fmt=type_)
+		#elif args.mode == 1:
+			#np.savetxt(path + "data_pred.csv", result, header="xpos,ypos,pred,target,cur_model,match_idx,og_idx", comments='', delimiter=',', fmt=type_)
 
 if __name__ == '__main__':
 	main()
