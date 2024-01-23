@@ -52,6 +52,24 @@ def convert_img():
 	true_labels = saved_image['labels']  # True labels
 	true_labels = true_labels[:-3].numpy()
 
+	label_4_indexes = (true_labels == 4).nonzero()[0]
+
+	# Select the first 400 instances where label is 4
+	excluded_indexes = label_4_indexes[:400]
+	# Create a mask for all indices
+	mask = torch.ones(len(true_labels), dtype=torch.bool)
+	# Set the mask to false for excluded indexes
+	mask[excluded_indexes] = False
+
+	# Extract the corresponding images
+	nat_images = nat_images[mask]
+	adv_images = adv_images[mask]
+	true_labels = true_labels[mask]
+
+	print("Shape of adv_images:", adv_images.shape)
+	print("Shape of nat_images:", nat_images.shape)
+	print("Shape of true_labels:", true_labels.shape)
+
 	#need to modify this line
 	images = adv_images
 

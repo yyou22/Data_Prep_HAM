@@ -7,8 +7,8 @@ def normalize_image(img, min_val, max_val):
 
 def main():
     folder1 = "Images"
-    folder2 = "Images2"
-    output_folder = "noise_2"
+    folder2 = "Images0"
+    output_folder = "noise_0"
 
     # Create output folder if it doesn't exist
     if not os.path.exists(output_folder):
